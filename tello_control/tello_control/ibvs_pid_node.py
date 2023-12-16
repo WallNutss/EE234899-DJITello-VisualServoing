@@ -129,9 +129,6 @@ class IBVSPIDController(Node):
         self.last_time = current_time
 
 
-
-
-
 def main(args=None):
     rclpy.init(args=args)
 

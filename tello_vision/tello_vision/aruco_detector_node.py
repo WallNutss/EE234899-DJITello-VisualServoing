@@ -74,6 +74,8 @@ class ImageDisplayNode(Node):
     def image_callback(self, msg):
         # Convert ROS Image message to OpenCV format
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        # resize them to 1280x720 original datasheet, becasue the driver put them on 960x720
+        cv_image = cv2.resize(cv_image, (1280,720), interpolation=cv2.INTER_AREA)
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
         # Ploting the desired image location
@@ -120,9 +122,9 @@ class ImageDisplayNode(Node):
                 bottom_left  = corners[3].ravel()
 
                 # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
-                Z = round(np.sqrt(
-                    tVec[i][0] **2 + tVec[i][1] **2 + tVec[i][2] **2
-                ),3) # cm --> m (for now its convert to m)
+                Z = round(math.sqrt(
+                    tVec[i][0][0] **2 + tVec[i][1][0] **2 + tVec[i][2][0] **2
+                )/100,3) # cm --> m (for now its convert to m)
 
 
                 floatArrayMsgData = Float32MultiArray()
@@ -136,7 +138,7 @@ class ImageDisplayNode(Node):
                 self.publisher.publish(floatArrayMsgData)
 
                 # self.get_logger().info(str(distance))
-                point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 75, 2)
+                point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 7, 3)
 
 
                 #Draw number for debug
