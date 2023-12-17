@@ -19,7 +19,7 @@ class IBVSPIDController(Node):
         self.target = np.array(self.flatten_nested_list(target))
         # 0.2 its ok, but the more you put >0.2 the more it breaks, better put them around 0.01 ~ 0.15
                             # y[0]   z[1] x[2]  wy wz  wx
-        self.lamba = np.array([0.08, 0.095, 0.2, 0, 1.2, 2]).reshape(6,1)
+        self.lamba = np.array([0.08, 0.095, 0.2, 0.6, 0.6, 0.6]).reshape(6,1)
 
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
         self.focalLength = 904.91767127 # Pixels
@@ -141,10 +141,10 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Set the target position (replace with your desired coordinates)
-    target_position = [[490,210], 
-                       [490,510], 
-                       [790,510], 
-                       [790,210]] # Already corrected, it in pixel units
+    target_position = [[590,310], 
+                       [590,410], 
+                       [690,410], 
+                       [690,310]] # Already corrected, it in pixel units
     
     # # Try Projection Transformation at Target
     # target_position = [[490,210], 

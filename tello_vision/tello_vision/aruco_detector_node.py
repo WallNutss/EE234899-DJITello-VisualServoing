@@ -95,11 +95,11 @@ class ImageDisplayNode(Node):
         cv_image = cv2.resize(cv_image, (1280,720), interpolation=cv2.INTER_AREA)
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
-        # Ploting the desired image location
-        n1 = ((w//2) - 50 , (h//2) - 50) # [490, 210]
-        n2 = ((w//2) - 50 , (h//2) + 50) # [490, 510]
-        n3 = ((w//2) + 50 , (h//2) + 50) # [790, 510]
-        n4 = ((w//2) + 50 , (h//2) - 50) # [790, 210]
+        # Ploting the desired image location, center 640, 360
+        n1 = ((w//2) - 50 , (h//2) - 50) # [590, 310]
+        n2 = ((w//2) - 50 , (h//2) + 50) # [590, 410]
+        n3 = ((w//2) + 50 , (h//2) + 50) # [690, 410]
+        n4 = ((w//2) + 50 , (h//2) - 50) # [690, 310]
 
         #self.get_logger().info(f'n1 : {n1}\nn2: {n2}\nn3 :{n3}\nn4 : {n4}')
 
