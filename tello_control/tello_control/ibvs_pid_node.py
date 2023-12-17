@@ -32,9 +32,9 @@ class IBVSPIDController(Node):
         self.R = np.array([ 0, 0, 1, 0, 0, 0,
                            -1, 0, 0, 0, 0, 0,
                             0,-1, 0, 0, 0, 0,
-                            0, 0, 1, 0, 0, 0,
-                           -1, 0, 0, 0, 0, 0,
-                            0,-1, 0, 0, 0, 0,]).reshape(6,6)
+                            0, 0, 0, 0, 0, 1,
+                            0, 0, 0,-1, 0, 0,
+                            0, 0, 0, 0,-1, 0,]).reshape(6,6)
         
         self.last_time = self.get_clock().now().nanoseconds
         self.errorSum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).reshape(8,1)
@@ -60,6 +60,10 @@ class IBVSPIDController(Node):
     def flatten_nested_list(self, nested_list):
         return [float(item) for sublist in nested_list for item in sublist]
     
+    def saturationCommand(self, U):
+        return np.clip(U,-0.2,0.2)
+
+    
     def vision_feedback(self, data):
         # self.get_logger().info("This is from IBVS Function\n")
         corner_data = np.array(data.data)
@@ -72,7 +76,7 @@ class IBVSPIDController(Node):
         error_data = error_data.reshape(-1,1)
 
         # control = -1*(0.005*error_data + 0.0002*(error_data - self.errorPrev)/delta_time)
-        control = (0.45*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
+        control_pid = (0.45*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
 
         '''Normalize first
         # corner_data[0:7] = np.array([self.image_projection(self.cx, self.fx, corner_data[0]),
@@ -101,20 +105,24 @@ class IBVSPIDController(Node):
 
         # np.set_printoptions(suppress=True)
         #cmd = -self.lamba * np.matmul(Jacobian, error_data) # Camera Command U
-        cmd = -self.lamba * np.matmul(Jacobian, control) # Camera Command U
+        cmd = -self.lamba * np.matmul(Jacobian, control_pid) # Camera Command U
         #cmd = np.matmul(Jacobian, control)
         #cmd = -self.lamba * (Jacobian @ error_data)
         #self.get_logger().info(f"Computational cmd: {cmd}\n")
 
         # Compute simple control commands (proportional control), transfer to body frame
         cmd = np.matmul(self.R, cmd)
+
+        # Safety measure, try to cap them for testing and debugging,
+        # Following the format given by tello_ros package, for cmd they map it to [-1,1]
+        cmd = self.saturationCommand(cmd)
         
         # Assign them to Twist 
         cmd_vel_msg = Twist()
-        cmd_vel_msg.linear.x = round(float(cmd[0]),3)
-        cmd_vel_msg.linear.y = round(-float(cmd[1]),3)
-        cmd_vel_msg.linear.z = round(-float(cmd[2]),3)
-        cmd_vel_msg.angular.z = round(-float(cmd[5]),3)
+        cmd_vel_msg.linear.x  = round(float(cmd[0]),3)
+        cmd_vel_msg.linear.y  = round(float(cmd[1]),3)
+        cmd_vel_msg.linear.z  = round(float(cmd[2]),3)
+        cmd_vel_msg.angular.z = round(float(cmd[5]),3)
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
