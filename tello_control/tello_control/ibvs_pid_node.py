@@ -19,7 +19,8 @@ class IBVSPIDController(Node):
         self.target = np.array(self.flatten_nested_list(target))
         # 0.2 its ok, but the more you put >0.2 the more it breaks, better put them around 0.01 ~ 0.15
                             # y[0]   z[1] x[2]  wy wz  wx
-        self.lamba = np.array([0.08, 0.095, 0.2, 0.6, 0.6, 0.6]).reshape(6,1)
+        #self.lamba = np.array([0.08, 0.095, 0.2, 0.1, 0.1, 0.1]).reshape(6,1)
+        self.lamba = np.array([0.008, 0.0095, 0.02, 0.01, 0.01, 0.01]).reshape(6,1)
 
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
         self.focalLength = 904.91767127 # Pixels
@@ -30,11 +31,11 @@ class IBVSPIDController(Node):
 
         # {CF} --> {BF}
         self.R = np.array([ 0, 0, 1, 0, 0, 0,
-                           -1, 0, 0, 0, 0, 0,
-                            0,-1, 0, 0, 0, 0,
+                            -1, 0, 0, 0, 0, 0,
+                            0, 1, 0, 0, 0, 0,
                             0, 0, 0, 0, 0, 1,
-                            0, 0, 0,-1, 0, 0,
-                            0, 0, 0, 0,-1, 0,]).reshape(6,6)
+                            0, 0, 0, -1, 0, 0,
+                            0, 0, 0, 0, 1, 0,]).reshape(6,6)
         
         self.last_time = self.get_clock().now().nanoseconds
         self.errorSum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).reshape(8,1)
