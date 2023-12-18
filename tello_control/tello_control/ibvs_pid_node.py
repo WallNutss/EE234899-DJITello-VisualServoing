@@ -20,7 +20,7 @@ class IBVSPIDController(Node):
         # 0.2 its ok, but the more you put >0.2 the more it breaks, better put them around 0.01 ~ 0.15
                             # y[0]   z[1] x[2]  wy wz  wx
         #self.lamba = np.array([0.08, 0.095, 0.2, 0.1, 0.1, 0.1]).reshape(6,1)
-        self.lamba = np.array([0.008, 0.0095, 0.02, 0.01, 0.01, 0.01]).reshape(6,1)
+        self.lamba = np.array([0.08, 0.095, 0.2, 0.04, 0.04, 0.04]).reshape(6,1)
 
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
         self.focalLength = 904.91767127 # Pixels
@@ -30,12 +30,20 @@ class IBVSPIDController(Node):
         self.cy = 355.3507261 # pixels
 
         # {CF} --> {BF}
-        self.R = np.array([ 0, 0, 1, 0, 0, 0,
+        # From logging data, the very first response is when this is started
+        # [0.2, 0.2, 0.2,-0.04, 0.04, 0.2] in term of tello_ros cmd_vel command output
+        # So this means move forward, go left , go up and rotate clockwise
+        # The second input is
+        # [0.15, 0.03, 0.007, -0.001, -0.001. 0.013]
+        # This means move forward, slight left, slight up and slight rotate clockwisre
+        # So the configuration of transformation matrix below should be correct
+        # Will try again when battery on, I can't send the takeoff command now
+        self.R = np.array([ 0, 0, 1, 0, 0, 0, # This is correct, if you see
                             -1, 0, 0, 0, 0, 0,
-                            0, 1, 0, 0, 0, 0,
+                            0, -1, 0, 0, 0, 0,
                             0, 0, 0, 0, 0, 1,
                             0, 0, 0, -1, 0, 0,
-                            0, 0, 0, 0, 1, 0,]).reshape(6,6)
+                            0, 0, 0, 0, -1, 0,]).reshape(6,6)
         
         self.last_time = self.get_clock().now().nanoseconds
         self.errorSum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).reshape(8,1)
@@ -62,7 +70,7 @@ class IBVSPIDController(Node):
         return [float(item) for sublist in nested_list for item in sublist]
     
     def saturationCommand(self, U):
-        return np.clip(U,-0.2,0.2)
+        return round(np.clip(U,-0.2,0.2),4)
 
     
     def vision_feedback(self, data):
@@ -109,7 +117,6 @@ class IBVSPIDController(Node):
         cmd = -self.lamba * np.matmul(Jacobian, control_pid) # Camera Command U
         #cmd = np.matmul(Jacobian, control)
         #cmd = -self.lamba * (Jacobian @ error_data)
-        #self.get_logger().info(f"Computational cmd: {cmd}\n")
 
         # Compute simple control commands (proportional control), transfer to body frame
         cmd = np.matmul(self.R, cmd)
@@ -117,6 +124,7 @@ class IBVSPIDController(Node):
         # Safety measure, try to cap them for testing and debugging,
         # Following the format given by tello_ros package, for cmd they map it to [-1,1]
         cmd = self.saturationCommand(cmd)
+        self.get_logger().info(f"Computational cmd: {cmd}\n")
         
         # Assign them to Twist 
         cmd_vel_msg = Twist()
