@@ -5,7 +5,13 @@ from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import Twist
 import math
 import numpy as np
-from scipy.linalg import pinvh
+
+def VelocityTwistMatrix(cRe,cTe):
+    cMe = np.zeros((6,6))
+    cMe[:3, :3] = cRe
+    cMe[:3, 3:6] = np.matmul(cRe, cTe.reshape(-1,1))
+    cMe[3:6, 3:6] = cRe
+    return cMe
 
 
 class IBVSPIDController(Node):
@@ -17,10 +23,7 @@ class IBVSPIDController(Node):
         self.publishererror = self.create_publisher(Float32MultiArray, '/error_data', 10)
         self.errData = Float32MultiArray()
         self.target = np.array(self.flatten_nested_list(target))
-        # 0.2 its ok, but the more you put >0.2 the more it breaks, better put them around 0.01 ~ 0.15
-                            # y[0]   z[1] x[2]  wy wz  wx
-        #self.lamba = np.array([0.08, 0.095, 0.2, 0.1, 0.1, 0.1]).reshape(6,1)
-        self.lamba = np.array([0.08, 0.095, 0.2, 0.04, 0.04, 0.04]).reshape(6,1)
+        #self.lamba = np.array([0.08, 0.095, 0.2, 0.04, 0.04, 0.04]).reshape(6,1)
 
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
         self.focalLength = 904.91767127 # Pixels
@@ -30,20 +33,15 @@ class IBVSPIDController(Node):
         self.cy = 355.3507261 # pixels
 
         # {CF} --> {BF}
-        # From logging data, the very first response is when this is started
-        # [0.2, 0.2, 0.2,-0.04, 0.04, 0.2] in term of tello_ros cmd_vel command output
-        # So this means move forward, go left , go up and rotate clockwise
-        # The second input is
-        # [0.15, 0.03, 0.007, -0.001, -0.001. 0.013]
-        # This means move forward, slight left, slight up and slight rotate clockwisre
-        # So the configuration of transformation matrix below should be correct
-        # Will try again when battery on, I can't send the takeoff command now
-        self.R = np.array([ 0, 0, 1, 0, 0, 0, # This is correct, if you see
-                            -1, 0, 0, 0, 0, 0,
-                            0, -1, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 1,
-                            0, 0, 0, -1, 0, 0,
-                            0, 0, 0, 0, -1, 0,]).reshape(6,6)
+        cRe = np.array([[0,-1,0],[0,0,-1],[1,0,0]])
+        cTe = np.array([0,0,0])
+        self.R = VelocityTwistMatrix(cRe,cTe)
+        self.jacobian_end_effector = np.array([[1,0,0,0],
+                                               [0,1,0,0],
+                                               [0,0,1,0],
+                                               [0,0,0,0],
+                                               [0,0,0,0],
+                                               [0,0,0,1]])
         
         self.last_time = self.get_clock().now().nanoseconds
         self.errorSum = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).reshape(8,1)
@@ -56,23 +54,12 @@ class IBVSPIDController(Node):
                       (self.focalLength + data[1]**2/self.focalLength), (-data[0]*data[1])/self.focalLength, -data[0]]).reshape(2,6)
         return L 
 
-    def image_jacobian_matrix2(self, data):
-        L = np.array([1/data[2], 0 , data[0]/data[2],
-                      data[0]*data[1], -(1+data[0]**2), data[1],
-                      0, -1/data[2], data[1]/data[2],
-                      (1+data[1]**2), -data[0]*data[1], -data[0]]).reshape(2,6)
-        return L    
-
-    def image_projection(self, principal, focallength, pixel):
-        return (pixel - principal)/focallength
-
     def flatten_nested_list(self, nested_list):
         return [float(item) for sublist in nested_list for item in sublist]
     
     def saturationCommand(self, U):
         return round(np.clip(U,-0.2,0.2),4)
 
-    
     def vision_feedback(self, data):
         # self.get_logger().info("This is from IBVS Function\n")
         corner_data = np.array(data.data)
@@ -84,19 +71,7 @@ class IBVSPIDController(Node):
         error_data = corner_data[0:self.target.shape[0]] - self.target
         error_data = error_data.reshape(-1,1)
 
-        # control = -1*(0.005*error_data + 0.0002*(error_data - self.errorPrev)/delta_time)
-        control_pid = (0.45*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
-
-        '''Normalize first
-        # corner_data[0:7] = np.array([self.image_projection(self.cx, self.fx, corner_data[0]),
-        #                              self.image_projection(self.cy, self.fy, corner_data[1]),
-        #                              self.image_projection(self.cx, self.fx, corner_data[2]),
-        #                              self.image_projection(self.cy, self.fy, corner_data[3]),
-        #                              self.image_projection(self.cx, self.fx, corner_data[4]),
-        #                              self.image_projection(self.cy, self.fy, corner_data[5]),
-        #                              self.image_projection(self.cx, self.fx, corner_data[6]),
-        #                              self.image_projection(self.cy, self.fy, corner_data[7])])
-        '''
+        control_pid = (0.5*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
 
         # Error data in form of shape 8x1 matrixs for Jacobian Pseudo Inverse Calculation
         jacobian_p1 = self.image_jacobian_matrix((corner_data[0],corner_data[1], corner_data[-1]))
@@ -105,33 +80,21 @@ class IBVSPIDController(Node):
         jacobian_p4 = self.image_jacobian_matrix((corner_data[6],corner_data[7], corner_data[-1]))
         
         Jacobian_ = np.vstack((jacobian_p1,jacobian_p2, jacobian_p3,jacobian_p4))
-        Jacobian = np.linalg.pinv(Jacobian_)
-        #Jacobian = np.matmul(np.linalg.pinv(np.matmul(Jacobian_.T, Jacobian_)),Jacobian_.T)
-        #self.get_logger().info(f"Jacobian Matrix : {Jacobian_}\n")
-        # #self.get_logger().info(f"Moore-Penrose Pseudo Jacobian : {Jacobian}\n")
-        # self.get_logger().info(f"Error data: {error_data}\n")
+        Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
 
-
-        # np.set_printoptions(suppress=True)
-        #cmd = -self.lamba * np.matmul(Jacobian, error_data) # Camera Command U
-        cmd = -self.lamba * np.matmul(Jacobian, control_pid) # Camera Command U
-        #cmd = np.matmul(Jacobian, control)
-        #cmd = -self.lamba * (Jacobian @ error_data)
-
-        # Compute simple control commands (proportional control), transfer to body frame
-        cmd = np.matmul(self.R, cmd)
+        cmd = -0.15 * np.matmul(Jacobian, control_pid) # Camera Command U
 
         # Safety measure, try to cap them for testing and debugging,
         # Following the format given by tello_ros package, for cmd they map it to [-1,1]
         cmd = self.saturationCommand(cmd)
-        self.get_logger().info(f"Computational cmd: {cmd}\n")
+        #self.get_logger().info(f"Computational cmd:\n{cmd}\n")
         
         # Assign them to Twist 
         cmd_vel_msg = Twist()
         cmd_vel_msg.linear.x  = round(float(cmd[0]),3)
         cmd_vel_msg.linear.y  = round(float(cmd[1]),3)
         cmd_vel_msg.linear.z  = round(float(cmd[2]),3)
-        cmd_vel_msg.angular.z = round(float(cmd[5]),3)
+        cmd_vel_msg.angular.z = round(float(cmd[3]),3)
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
@@ -154,13 +117,6 @@ def main(args=None):
                        [590,410], 
                        [690,410], 
                        [690,310]] # Already corrected, it in pixel units
-    
-    # # Try Projection Transformation at Target
-    # target_position = [[490,210], 
-    #                    [490,510], 
-    #                    [632,408], 
-    #                    [632,168]]
- 
     ibvs_controller = IBVSPIDController(target_position)
     rclpy.spin(ibvs_controller)
     ibvs_controller.destroy_node()
