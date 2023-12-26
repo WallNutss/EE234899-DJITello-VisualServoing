@@ -90,19 +90,23 @@ class ImageDisplayNode(Node):
         # Convert ROS Image message to OpenCV format
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         # resize them to 1280x720 original datasheet, becasue the driver put them on 960x720
-        cv_image = cv2.resize(cv_image, (1280,720), interpolation=cv2.INTER_AREA)
+        # https://stackoverflow.com/questions/23853632/which-kind-of-interpolation-best-for-resizing-image
+        cv_image = cv2.resize(cv_image, (1280,720), interpolation=cv2.INTER_LINEAR)
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
         # Ploting the desired image location, center 640, 360
-        n1 = ((w//2) - 50 , (h//2) - 50) # [590, 310]
-        n2 = ((w//2) - 50 , (h//2) + 50) # [590, 410]
-        n3 = ((w//2) + 50 , (h//2) + 50) # [690, 410]
-        n4 = ((w//2) + 50 , (h//2) - 50) # [690, 310]
+        n1 = ((w//2) - 25 , (h//2) - 25) # [590, 310]
+        n2 = ((w//2) - 25 , (h//2) + 25) # [590, 410]
+        n3 = ((w//2) + 25 , (h//2) + 25) # [690, 410]
+        n4 = ((w//2) + 25 , (h//2) - 25) # [690, 310]
 
-        # cv2.circle(cv_image, n1, 5, (255,0,0), 2)
-        # cv2.circle(cv_image, n2, 5, (255,0,0), 2)
-        # cv2.circle(cv_image, n3, 5, (255,0,0), 2)
-        # cv2.circle(cv_image, n4, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n1, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n2, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n3, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n4, 5, (255,0,0), 2)
+
+        self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
+
 
         # EDITABLE
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -125,7 +129,11 @@ class ImageDisplayNode(Node):
                 # Clockwise rotation in order start from top_left
                 corners = corners.reshape(4, 2)
                 corners = corners.astype(int)
- 
+
+                # markerCorners is the list of corners of the detected markers. 
+                # For each marker, its four corners are returned in their original order 
+                # (which is clockwise starting with top left). So, the first corner is the top left corner, 
+                # followed by the top right, bottom right and bottom left.
                 top_left     = corners[0].ravel()
                 top_right    = corners[1].ravel()
                 bottom_right = corners[2].ravel()
@@ -163,16 +171,16 @@ class ImageDisplayNode(Node):
                 # cv2.putText(cv_image, f"top_right", top_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (7,165,219),1, cv2.LINE_AA)
 
                 # Draw the information
-                cv2.putText(
-                    cv_image,
-                    f"[ID]:[{ids[0]}]",
-                    top_right+20,
-                    cv2.FONT_HERSHEY_DUPLEX,
-                    0.6,
-                    (0,255,0),
-                    2,
-                    cv2.LINE_AA
-                )
+                # cv2.putText(
+                #     cv_image,
+                #     f"[ID]:[{ids[0]}]",
+                #     top_right+20,
+                #     cv2.FONT_HERSHEY_DUPLEX,
+                #     0.6,
+                #     (0,255,0),
+                #     2,
+                #     cv2.LINE_AA
+                # )
                 cv2.putText(
                     cv_image,
                     f"X Relative: {round(tVec[i][0][0],2)} cm",
@@ -207,18 +215,18 @@ class ImageDisplayNode(Node):
             # Low filter
             pass
 
-
-        # Resize the window frame to 60% Downscale for easy monitoring in the node
-        cv_image = cv2.resize(cv_image, (640,360), interpolation=cv2.INTER_AREA) 
-        # Display the image
-        cv2.imshow('Image Display Node', cv_image)
         key = cv2.waitKey(1)  # Refresh window
+
         if key == ord("q"):
             raise SystemExit
         # Saving the display for logging
         if key == ord('s'):
-            cv2.imwrite(f'./data/image{self.currentTime}.png', cv_image)
+            cv2.imwrite(f'./data/image{self.get_clock().now()}.png', cv_image)
             self.get_logger().info("Successfully saved the image!")
+        # Resize the window frame to 60% Downscale for easy monitoring in the node
+        cv_image = cv2.resize(cv_image, (640,360), interpolation=cv2.INTER_AREA) 
+        # Display the image
+        cv2.imshow('Image Display Node', cv_image)
             
 
     def call_tello_action_service(self,cmd):

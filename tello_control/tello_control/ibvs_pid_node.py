@@ -67,12 +67,11 @@ class IBVSPIDController(Node):
         error_data = error_data.reshape(-1,1)
 
         epsilon = np.sqrt(np.sum(error_data**2)/8)
-        if epsilon <= 10.0:
+        if epsilon <= 15.0:
             cmd = np.array([0,0,0,0])
             self.get_logger().info("01 Flight")
         # Flight Mechanism 02
         else:
-
             control_pid = (0.5*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
 
             # Error data in form of shape 8x1 matrixs for Jacobian Pseudo Inverse Calculation
@@ -84,19 +83,20 @@ class IBVSPIDController(Node):
             Jacobian_ = np.vstack((jacobian_p1,jacobian_p2, jacobian_p3,jacobian_p4))
             Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
 
-            cmd = -0.15 * np.matmul(Jacobian, control_pid) # Camera Command U
-            cmd = np.clip(cmd,-0.5,0.5)
+            cmd = -0.25 * np.matmul(Jacobian, control_pid) # Camera Command U, maybe divide 0.2/100 will miracelyy goes to cm/s
+
+            cmd = np.clip(cmd,-1.0,1.0)
 
         # Safety measure, try to cap them for testing and debugging,
         # Following the format given by tello_ros package, for cmd they map it to [-1,1]
-        #self.get_logger().info(f"Computational cmd:\n{cmd}\n")
+        self.get_logger().info(f"Computational cmd:\n{cmd}\n")
         
         # Assign them to Twist 
         cmd_vel_msg = Twist()
         cmd_vel_msg.linear.x = float(cmd[0])
         cmd_vel_msg.linear.y = float(cmd[1])
         cmd_vel_msg.linear.z = float(cmd[2])
-        cmd_vel_msg.angular.z = float(cmd[3])
+        cmd_vel_msg.angular.z = 0.0 #float(cmd[3])
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
@@ -115,11 +115,18 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Set the target position (replace with your desired coordinates)
-    target_position = [[590,310], 
-                       [590,410], 
-                       [690,410], 
-                       [690,310]] # Already corrected, it in pixel units
-    ibvs_controller = IBVSPIDController(target_position)
+    # This for a desired square location with square size of 100px each side
+    # target_position = [[590,310], 
+    #                    [590,410], 
+    #                    [690,410], 
+    #                    [690,310]] # Already corrected, its in pixel units
+    
+    # This for a desired square location with square size of 500px each side
+    target_position2 = [[615,335], 
+                        [615,385], 
+                        [665,385], 
+                        [665,335]]
+    ibvs_controller = IBVSPIDController(target_position2)
     rclpy.spin(ibvs_controller)
     ibvs_controller.destroy_node()
     rclpy.shutdown()
