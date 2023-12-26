@@ -3,9 +3,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 import cv2
 from cv_bridge import CvBridge
-from cv2 import aruco
 import numpy as np
-from std_msgs.msg import Float32MultiArray, Empty
+from std_msgs.msg import Float32MultiArray
 import math
 
 # Dirty way, is there the cleaner way? anyways, lot of pun way, as long is working, for now this should suffice
@@ -21,9 +20,8 @@ cam_mat,dist_coef,r_vectors, t_vectors = calib_data["camMatrix"], calib_data["di
 
 MARKER_SIZE = 15 # centimeters (measure your printed marker size), Ideally have to try print them again, 15cm x 15cm should suffice
 
-
-MARKER_DICT = aruco.getPredefinedDictionary(aruco.DICT_5X5_100)
-PARAM_MARKERS = aruco.DetectorParameters()
+MARKER_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
+PARAM_MARKERS = cv2.aruco.DetectorParameters()
 DETECTOR = cv2.aruco.ArucoDetector(MARKER_DICT, PARAM_MARKERS)
 
 
@@ -101,17 +99,10 @@ class ImageDisplayNode(Node):
         n3 = ((w//2) + 50 , (h//2) + 50) # [690, 410]
         n4 = ((w//2) + 50 , (h//2) - 50) # [690, 310]
 
-        #self.get_logger().info(f'n1 : {n1}\nn2: {n2}\nn3 :{n3}\nn4 : {n4}')
-
-        cv2.circle(cv_image, n1, 5, (255,0,0), 2)
-        cv2.circle(cv_image, n2, 5, (255,0,0), 2)
-        cv2.circle(cv_image, n3, 5, (255,0,0), 2)
-        cv2.circle(cv_image, n4, 5, (255,0,0), 2)
-        # Ploting the desired image location
-        # cv2.putText(cv_image, f"n1", n1, cv2.FONT_HERSHEY_DUPLEX, 0.8, (0,255,0),1, cv2.LINE_AA)
-        # cv2.putText(cv_image, f"n2", n2, cv2.FONT_HERSHEY_DUPLEX, 0.8, (0,255,0),1, cv2.LINE_AA)
-        # cv2.putText(cv_image, f"n3", n3, cv2.FONT_HERSHEY_DUPLEX, 0.8, (0,255,0),1, cv2.LINE_AA)
-        # cv2.putText(cv_image, f"n4", n4, cv2.FONT_HERSHEY_DUPLEX, 0.8, (0,255,0),1, cv2.LINE_AA)
+        # cv2.circle(cv_image, n1, 5, (255,0,0), 2)
+        # cv2.circle(cv_image, n2, 5, (255,0,0), 2)
+        # cv2.circle(cv_image, n3, 5, (255,0,0), 2)
+        # cv2.circle(cv_image, n4, 5, (255,0,0), 2)
 
         # EDITABLE
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -123,12 +114,13 @@ class ImageDisplayNode(Node):
             # Flattens the IDs
             # Getting the Pose of Estimation by getting the Translation and Rotation Vector
             # Based on the markerCorners, so Kalman Filter shoould estimate the points --> points_hat
-            rVec, tVec, trash = self.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, cam_mat, dist_coef)
+            #rVec, tVec, trash = self.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, cam_mat, dist_coef)
+            rVec, tVec, trash = cv2.aruco.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, cam_mat, dist_coef)
             # Loop over the IDs
             total_markers = range(0, self.markerIds.size)
             for ids, corners, i in zip(self.markerIds, self.markerCorners, total_markers):
                 # Draw the corners with convinient aruco library
-                aruco.drawDetectedMarkers(cv_image, self.markerCorners)
+                cv2.aruco.drawDetectedMarkers(cv_image, self.markerCorners)
 
                 # Clockwise rotation in order start from top_left
                 corners = corners.reshape(4, 2)
@@ -146,7 +138,7 @@ class ImageDisplayNode(Node):
 
                 # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
                 Z = round(math.sqrt(
-                    tVec[i][0][0] **2 + tVec[i][1][0] **2 + tVec[i][2][0] **2
+                    tVec[i][0][1] **2 + tVec[i][0][1] **2 + tVec[i][0][2] **2
                 )/100,3) # cm --> m (for now its convert to m)
 
 
@@ -170,17 +162,41 @@ class ImageDisplayNode(Node):
                 # cv2.putText(cv_image, f"bottom_right", bottom_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (210,199,142),1, cv2.LINE_AA)
                 # cv2.putText(cv_image, f"top_right", top_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (7,165,219),1, cv2.LINE_AA)
 
-                #Draw number for debug
-                # cv2.putText(cv_image, f"top_left", top_left, cv2.FONT_HERSHEY_DUPLEX, 0.6, (61,7,219),1, cv2.LINE_AA)
-                # cv2.putText(cv_image, f"bottom_left", bottom_left, cv2.FONT_HERSHEY_DUPLEX, 0.6, (13,105,134),1, cv2.LINE_AA)
-                # cv2.putText(cv_image, f"bottom_right", bottom_right, cv2.FONT_HERSHEY_DUPLEX, 0.6, (210,199,142),1, cv2.LINE_AA)
-                # cv2.putText(cv_image, f"top_right", top_right, cv2.FONT_HERSHEY_DUPLEX, 0.6, (7,165,219),1, cv2.LINE_AA)
-
                 # Draw the information
                 cv2.putText(
                     cv_image,
-                    f"[ID]:[{ids[0]}] Distance: {Z} m",
+                    f"[ID]:[{ids[0]}]",
                     top_right+20,
+                    cv2.FONT_HERSHEY_DUPLEX,
+                    0.6,
+                    (0,255,0),
+                    2,
+                    cv2.LINE_AA
+                )
+                cv2.putText(
+                    cv_image,
+                    f"X Relative: {round(tVec[i][0][0],2)} cm",
+                    (top_right[0]+20, top_right[1]+40),
+                    cv2.FONT_HERSHEY_DUPLEX,
+                    0.6,
+                    (0,255,0),
+                    2,
+                    cv2.LINE_AA
+                )
+                cv2.putText(
+                    cv_image,
+                    f"Y Relative: {round(tVec[i][0][1],2)} cm",
+                    (top_right[0]+20, top_right[1]+60),
+                    cv2.FONT_HERSHEY_DUPLEX,
+                    0.6,
+                    (0,255,0),
+                    2,
+                    cv2.LINE_AA
+                )
+                cv2.putText(
+                    cv_image,
+                    f"Z Relative: {round(tVec[i][0][2],2)} cm",
+                    (top_right[0]+20, top_right[1]+80),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
                     (0,255,0),
