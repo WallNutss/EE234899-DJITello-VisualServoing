@@ -3,7 +3,6 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray
 from geometry_msgs.msg import Twist
-import math
 import numpy as np
 
 def VelocityTwistMatrix(cRe,cTe):
@@ -12,7 +11,6 @@ def VelocityTwistMatrix(cRe,cTe):
     cMe[:3, 3:6] = np.matmul(cRe, cTe.reshape(-1,1))
     cMe[3:6, 3:6] = cRe
     return cMe
-
 
 class IBVSPIDController(Node):
     def __init__(self,target):
@@ -56,9 +54,6 @@ class IBVSPIDController(Node):
 
     def flatten_nested_list(self, nested_list):
         return [float(item) for sublist in nested_list for item in sublist]
-    
-    def saturationCommand(self, U):
-        return round(np.clip(U,-0.2,0.2),4)
 
     def vision_feedback(self, data):
         # self.get_logger().info("This is from IBVS Function\n")
@@ -71,30 +66,37 @@ class IBVSPIDController(Node):
         error_data = corner_data[0:self.target.shape[0]] - self.target
         error_data = error_data.reshape(-1,1)
 
-        control_pid = (0.5*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
+        epsilon = np.sqrt(np.sum(error_data**2)/8)
+        if epsilon <= 10.0:
+            cmd = np.array([0,0,0,0])
+            self.get_logger().info("01 Flight")
+        # Flight Mechanism 02
+        else:
 
-        # Error data in form of shape 8x1 matrixs for Jacobian Pseudo Inverse Calculation
-        jacobian_p1 = self.image_jacobian_matrix((corner_data[0],corner_data[1], corner_data[-1]))
-        jacobian_p2 = self.image_jacobian_matrix((corner_data[2],corner_data[3], corner_data[-1]))
-        jacobian_p3 = self.image_jacobian_matrix((corner_data[4],corner_data[5], corner_data[-1]))
-        jacobian_p4 = self.image_jacobian_matrix((corner_data[6],corner_data[7], corner_data[-1]))
-        
-        Jacobian_ = np.vstack((jacobian_p1,jacobian_p2, jacobian_p3,jacobian_p4))
-        Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
+            control_pid = (0.5*error_data + 0.002*(self.errorSum) + 0.05*(error_data-self.errorPrev)/delta_time)
 
-        cmd = -0.15 * np.matmul(Jacobian, control_pid) # Camera Command U
+            # Error data in form of shape 8x1 matrixs for Jacobian Pseudo Inverse Calculation
+            jacobian_p1 = self.image_jacobian_matrix((corner_data[0],corner_data[1], corner_data[-1]))
+            jacobian_p2 = self.image_jacobian_matrix((corner_data[2],corner_data[3], corner_data[-1]))
+            jacobian_p3 = self.image_jacobian_matrix((corner_data[4],corner_data[5], corner_data[-1]))
+            jacobian_p4 = self.image_jacobian_matrix((corner_data[6],corner_data[7], corner_data[-1]))
+            
+            Jacobian_ = np.vstack((jacobian_p1,jacobian_p2, jacobian_p3,jacobian_p4))
+            Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
+
+            cmd = -0.15 * np.matmul(Jacobian, control_pid) # Camera Command U
+            cmd = np.clip(cmd,-0.5,0.5)
 
         # Safety measure, try to cap them for testing and debugging,
         # Following the format given by tello_ros package, for cmd they map it to [-1,1]
-        cmd = self.saturationCommand(cmd)
         #self.get_logger().info(f"Computational cmd:\n{cmd}\n")
         
         # Assign them to Twist 
         cmd_vel_msg = Twist()
-        cmd_vel_msg.linear.x  = round(float(cmd[0]),3)
-        cmd_vel_msg.linear.y  = round(float(cmd[1]),3)
-        cmd_vel_msg.linear.z  = round(float(cmd[2]),3)
-        cmd_vel_msg.angular.z = round(float(cmd[3]),3)
+        cmd_vel_msg.linear.x = float(cmd[0])
+        cmd_vel_msg.linear.y = float(cmd[1])
+        cmd_vel_msg.linear.z = float(cmd[2])
+        cmd_vel_msg.angular.z = float(cmd[3])
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
