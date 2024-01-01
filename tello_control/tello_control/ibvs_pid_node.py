@@ -24,11 +24,12 @@ class IBVSPIDController(Node):
         #self.lamba = np.array([0.08, 0.095, 0.2, 0.04, 0.04, 0.04]).reshape(6,1)
 
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
-        self.focalLength = 904.91767127 # Pixels
-        self.fx = 904.91767127 # pixels
-        self.fy = 904.09119851 # pixels
-        self.cx = 503.21829022 # pixels
-        self.cy = 355.3507261 # pixels
+        # new calibration data
+        self.fx = 1339.19799798 # pixels
+        self.fy = 1002.35365086 # pixels
+        self.cx = 635.0702291 # pixels
+        self.cy = 400.10328203 # pixels
+        self.focalLength = (self.fx + self.fy) /2 # Pixels
 
         # {CF} --> {BF}
         cRe = np.array([[0,-1,0],[0,0,-1],[1,0,0]])
@@ -67,6 +68,13 @@ class IBVSPIDController(Node):
         error_data = error_data.reshape(-1,1)
 
         epsilon = np.sqrt(np.sum(error_data**2)/8)
+        # Reason
+        # With quadcopter as a non-linear system plus an image with also a non-linear system, it's getting harder
+        # to control a quadcopter from an image. To cope with over overshoot, I divide it into two step flight
+        # mechanism the cope with this, at least to reduce the burden of the calculation and easy implementation
+        # as we get near the feature we want, at least in radius of 15px of each points, I decide to give the
+        # all velocity reference 0. Now at least it seems to be working. 
+        # Flight Mechanism 01
         if epsilon <= 15.0:
             cmd = np.array([0,0,0,0])
             self.get_logger().info("01 Flight")
@@ -83,7 +91,7 @@ class IBVSPIDController(Node):
             Jacobian_ = np.vstack((jacobian_p1,jacobian_p2, jacobian_p3,jacobian_p4))
             Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
 
-            cmd = -0.25 * np.matmul(Jacobian, control_pid) # Camera Command U, maybe divide 0.2/100 will miracelyy goes to cm/s
+            cmd = -0.15 * np.matmul(Jacobian, control_pid) # Camera Command U, maybe divide 0.2/100 will miracelyy goes to cm/s
 
             cmd = np.clip(cmd,-1.0,1.0)
 
@@ -96,7 +104,7 @@ class IBVSPIDController(Node):
         cmd_vel_msg.linear.x = float(cmd[0])
         cmd_vel_msg.linear.y = float(cmd[1])
         cmd_vel_msg.linear.z = float(cmd[2])
-        cmd_vel_msg.angular.z = 0.0 #float(cmd[3])
+        cmd_vel_msg.angular.z = 0.0 #float(cmd[3]) #float(cmd[3])
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
@@ -121,12 +129,18 @@ def main(args=None):
     #                    [690,410], 
     #                    [690,310]] # Already corrected, its in pixel units
     
-    # This for a desired square location with square size of 500px each side
-    target_position2 = [[615,335], 
-                        [615,385], 
-                        [665,385], 
-                        [665,335]]
-    ibvs_controller = IBVSPIDController(target_position2)
+    # This for a desired square location with square size of 80px each side
+    # target_position2 = [[605,325], 
+    #                     [605,395], 
+    #                     [675,395], 
+    #                     [675,325]]
+    # This is for offset in v-axis about 180px upward
+    target_position3 = [[590,130], 
+                        [590,230], 
+                        [690,230], 
+                        [690,130]]
+    
+    ibvs_controller = IBVSPIDController(target_position3)
     rclpy.spin(ibvs_controller)
     ibvs_controller.destroy_node()
     rclpy.shutdown()
