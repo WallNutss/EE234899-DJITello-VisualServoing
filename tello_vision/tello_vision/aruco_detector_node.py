@@ -12,18 +12,17 @@ import sys
 sys.path.append('/home/wallnuts/tello_ros_ws/src/tello_ros/tello_msgs')
 from tello_msgs.srv import TelloAction
 
-# load in the calibration data
-calib_data_path = "/home/wallnuts/tello_ros_ws/src/tello_vision/data_calibration_camera/MultiMatrix.npz"
-calib_data = np.load(calib_data_path)
+# load in the calibration data, its from calibration in 960x720
+cam_mat = np.array([925.259979,         0.0, 491.398274,
+                    0.0        , 927.502076, 371.463298,
+                    0.0        , 0.0       , 1.0]).reshape(3,3)
 
-cam_mat,dist_coef,r_vectors, t_vectors = calib_data["camMatrix"], calib_data["distCoef"],calib_data["rVector"],calib_data["tVector"]
+dist_coef = np.array([-0.018452, 0.108834, 0.003492, 0.001679, 0.0]).reshape(1,5)
 
 MARKER_SIZE = 15 # centimeters (measure your printed marker size), Ideally have to try print them again, 15cm x 15cm should suffice
-
 MARKER_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
 PARAM_MARKERS = cv2.aruco.DetectorParameters()
 DETECTOR = cv2.aruco.ArucoDetector(MARKER_DICT, PARAM_MARKERS)
-
 
 class ImageDisplayNode(Node):
     def __init__(self):
@@ -91,23 +90,16 @@ class ImageDisplayNode(Node):
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         # resize them to 1280x720 original datasheet, becasue the driver put them on 960x720
         # https://stackoverflow.com/questions/23853632/which-kind-of-interpolation-best-for-resizing-image
-        cv_image = cv2.resize(cv_image, (1280,720), interpolation=cv2.INTER_LINEAR)
+        # cv_image = cv2.resize(cv_image, (1280,720), interpolation=cv2.INTER_LINEAR)
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
         # Ploting the desired image location, center 640, 360
-        n1 = ((w//2) - 25 , (h//2) - 25) # [590, 310]
-        n2 = ((w//2) - 25 , (h//2) + 25) # [590, 410]
-        n3 = ((w//2) + 25 , (h//2) + 25) # [690, 410]
-        n4 = ((w//2) + 25 , (h//2) - 25) # [690, 310]
+        n1 = ((w//2) - 50 , ((h//2) - 50) + 200) # [590, 310]
+        n2 = ((w//2) - 50 , ((h//2) + 50) + 200) # [590, 410]
+        n3 = ((w//2) + 50 , ((h//2) + 50) + 200) # [690, 410]
+        n4 = ((w//2) + 50 , ((h//2) - 50) + 200) # [690, 310]
 
-        cv2.circle(cv_image, n1, 5, (255,0,0), 2)
-        cv2.circle(cv_image, n2, 5, (255,0,0), 2)
-        cv2.circle(cv_image, n3, 5, (255,0,0), 2)
-        cv2.circle(cv_image, n4, 5, (255,0,0), 2)
-
-        self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
-
-
+        # self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
         # EDITABLE
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
          # Trying to detect the marker with the object detector defined up there
@@ -139,6 +131,8 @@ class ImageDisplayNode(Node):
                 bottom_right = corners[2].ravel()
                 bottom_left  = corners[3].ravel()
 
+                # self.get_logger().info(f"\nn1: {top_left}\nn2: {bottom_left}\nn3: {bottom_right}\nn4: {top_right}\n")
+
                 # top_left_predicted = self.predict(top_left)
                 # top_right_predicted = self.predict(top_right)
                 # bottom_right_predicted = self.predict(bottom_right)
@@ -161,7 +155,7 @@ class ImageDisplayNode(Node):
                 self.publisher.publish(floatArrayMsgData)
 
                 # self.get_logger().info(str(distance))
-                point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 7, 3)
+                #point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 7, 3)
 
 
                 #Draw number for debug
@@ -170,17 +164,17 @@ class ImageDisplayNode(Node):
                 # cv2.putText(cv_image, f"bottom_right", bottom_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (210,199,142),1, cv2.LINE_AA)
                 # cv2.putText(cv_image, f"top_right", top_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (7,165,219),1, cv2.LINE_AA)
 
-                # Draw the information
-                # cv2.putText(
-                #     cv_image,
-                #     f"[ID]:[{ids[0]}]",
-                #     top_right+20,
-                #     cv2.FONT_HERSHEY_DUPLEX,
-                #     0.6,
-                #     (0,255,0),
-                #     2,
-                #     cv2.LINE_AA
-                # )
+                #Draw the information
+                cv2.putText(
+                    cv_image,
+                    f"[ID]:[{ids[0]}]",
+                    top_right+20,
+                    cv2.FONT_HERSHEY_DUPLEX,
+                    0.6,
+                    (0,255,0),
+                    2,
+                    cv2.LINE_AA
+                )
                 cv2.putText(
                     cv_image,
                     f"X Relative: {round(tVec[i][0][0],2)} cm",
@@ -211,12 +205,16 @@ class ImageDisplayNode(Node):
                     2,
                     cv2.LINE_AA
                 )
-        else:
-            # Low filter
-            pass
+        # else:
+        #     # Low filter
+        #     pass
+        cv2.circle(cv_image, n1, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n2, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n3, 5, (255,0,0), 2)
+        cv2.circle(cv_image, n4, 5, (255,0,0), 2)
 
         key = cv2.waitKey(1)  # Refresh window
-
+        # Safety Mechanism
         if key == ord("q"):
             raise SystemExit
         # Saving the display for logging
@@ -224,19 +222,19 @@ class ImageDisplayNode(Node):
             cv2.imwrite(f'./data/image{self.get_clock().now()}.png', cv_image)
             self.get_logger().info("Successfully saved the image!")
         # Resize the window frame to 60% Downscale for easy monitoring in the node
-        cv_image = cv2.resize(cv_image, (640,360), interpolation=cv2.INTER_AREA) 
+        cv_image = cv2.resize(cv_image, (576,360), interpolation=cv2.INTER_AREA) 
         # Display the image
         cv2.imshow('Image Display Node', cv_image)
             
 
-    def call_tello_action_service(self,cmd):
+    def call_tello_action_service(self,command):
         client = self.create_client(TelloAction, '/tello_action')
         while not client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('Service is not available, waiting again....')
         
         # Initiating Request
         request = TelloAction.Request()
-        request.cmd = cmd
+        request.cmd = command
 
         # Sending the request from client to origin
         future = client.call_async(request)
@@ -257,8 +255,8 @@ def main(args=None):
         rclpy.spin(aruco_detector)
     except SystemExit:                 # <--- process the exception 
         # For safety, land the drone
-        aruco_detector.call_tello_action_service(cmd='land')
-        aruco_detector.call_tello_action_service(cmd='streamoff')
+        aruco_detector.call_tello_action_service(command='land')
+        aruco_detector.call_tello_action_service(command='streamoff')
         rclpy.logging.get_logger("Leaving the process node").info('Done')
     aruco_detector.destroy_node()
     rclpy.shutdown()
