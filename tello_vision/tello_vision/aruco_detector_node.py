@@ -94,10 +94,10 @@ class ImageDisplayNode(Node):
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
         # Ploting the desired image location, center 640, 360
-        n1 = ((w//2) - 50 , ((h//2) - 50) + 200) # [590, 310]
-        n2 = ((w//2) - 50 , ((h//2) + 50) + 200) # [590, 410]
-        n3 = ((w//2) + 50 , ((h//2) + 50) + 200) # [690, 410]
-        n4 = ((w//2) + 50 , ((h//2) - 50) + 200) # [690, 310]
+        n1 = ((w//2) - 50 , ((h//2) - 50) - 150) # [590, 310]
+        n2 = ((w//2) - 50 , ((h//2) + 50) - 150) # [590, 410]
+        n3 = ((w//2) + 50 , ((h//2) + 50) - 150) # [690, 410]
+        n4 = ((w//2) + 50 , ((h//2) - 50) - 150) # [690, 310]
 
         # self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
         # EDITABLE
@@ -255,6 +255,7 @@ def main(args=None):
         rclpy.spin(aruco_detector)
     except SystemExit:                 # <--- process the exception 
         # For safety, land the drone
+        aruco_detector.call_tello_action_service(command='rc 0 0 0 0')
         aruco_detector.call_tello_action_service(command='land')
         aruco_detector.call_tello_action_service(command='streamoff')
         rclpy.logging.get_logger("Leaving the process node").info('Done')
