@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'ibvs_pid = tello_control.ibvs_pid_node:main',
         ],
     },
 )

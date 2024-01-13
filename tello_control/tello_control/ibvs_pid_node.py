@@ -76,8 +76,8 @@ class IBVSPIDController(Node):
         # as we get near the feature we want, at least in radius of 15px of each points, I decide to give the
         # all velocity reference 0. Now at least it seems to be working. 
         # Flight Mechanism 01
-        if epsilon <= 10.0:
-            cmd = np.array([0,0,0,0])
+        if epsilon <= 20.0:
+            cmd = np.array([0.0,0.0,0.0,0.0])
             self.get_logger().info("01 Flight")
         # Flight Mechanism 02
         else:
@@ -102,10 +102,12 @@ class IBVSPIDController(Node):
         
         # Assign them to Twist 
         cmd_vel_msg = Twist()
-        cmd_vel_msg.linear.x = float(cmd[0])
-        cmd_vel_msg.linear.y = float(cmd[1])
-        cmd_vel_msg.linear.z = float(cmd[2])
-        cmd_vel_msg.angular.z = 0.0 .float(cmd[3]) #float(cmd[3])
+        #self.get_logger().info(f"Shape cmd:\n{cmd.shape}\n")
+        
+        cmd_vel_msg.linear.x = float(cmd[0][0])
+        cmd_vel_msg.linear.y = float(cmd[1][0])
+        cmd_vel_msg.linear.z = float(cmd[2][0])
+        cmd_vel_msg.angular.z = float(cmd[3][0]) #float(cmd[3])
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
@@ -123,16 +125,21 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Set the target position (replace with your desired coordinates)
-    # This for a desired square location with square size of 100px each side
-    # target_position = [[590,310], 
-    #                    [590,410], 
-    #                    [690,410], 
-    #                    [690,310]] # Already corrected, its in pixel units
-    # This is for offset in v-axis about 200px upward in 960x720 frame
+    # This for a desired square location with square size of 50px each side,or offset in v-axis about 150px upward
+    target_position2 = [[430,160], 
+                       [430,260], 
+                       [530,260], 
+                       [530,160]] # Already corrected, its in pixel units
+    # This is for offset in v-axis about 200px upward in 960x720 frame, spacing 100px
     target_position3 = [[430,110], 
                         [430,210], 
                         [530,210], 
                         [530,110]]
+    # This is for offset in v-axis about 180px upward in 960x720 frame, spacing 100px
+    target_position4 = [[430,130], 
+                        [430,230], 
+                        [530,230], 
+                        [530,130]]
     
     ibvs_controller = IBVSPIDController(target_position3)
     rclpy.spin(ibvs_controller)
