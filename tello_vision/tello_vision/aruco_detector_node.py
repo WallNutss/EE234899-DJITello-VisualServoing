@@ -94,12 +94,12 @@ class ImageDisplayNode(Node):
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
         # Ploting the desired image location, center 640, 360
-        n1 = ((w//2) - 50 , ((h//2) - 50) - 150) # [590, 310]
-        n2 = ((w//2) - 50 , ((h//2) + 50) - 150) # [590, 410]
-        n3 = ((w//2) + 50 , ((h//2) + 50) - 150) # [690, 410]
-        n4 = ((w//2) + 50 , ((h//2) - 50) - 150) # [690, 310]
+        n1 = ((w//2) - 50 , ((h//2) - 50) - 200) # [590, 310]
+        n2 = ((w//2) - 50 , ((h//2) + 50) - 200) # [590, 410]
+        n3 = ((w//2) + 50 , ((h//2) + 50) - 200) # [690, 410]
+        n4 = ((w//2) + 50 , ((h//2) - 50) - 200) # [690, 310]
 
-        # self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
+        #self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
         # EDITABLE
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
          # Trying to detect the marker with the object detector defined up there
@@ -131,7 +131,7 @@ class ImageDisplayNode(Node):
                 bottom_right = corners[2].ravel()
                 bottom_left  = corners[3].ravel()
 
-                # self.get_logger().info(f"\nn1: {top_left}\nn2: {bottom_left}\nn3: {bottom_right}\nn4: {top_right}\n")
+                #self.get_logger().info(f"\nn1: {top_left}\nn2: {bottom_left}\nn3: {bottom_right}\nn4: {top_right}\n")
 
                 # top_left_predicted = self.predict(top_left)
                 # top_right_predicted = self.predict(top_right)

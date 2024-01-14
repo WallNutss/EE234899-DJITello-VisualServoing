@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ibvs_pid = tello_control.ibvs_pid_node:main',
+            'ibvs_ismc = tello_control.ibvs_ismc_node:main',
         ],
     },
 )
