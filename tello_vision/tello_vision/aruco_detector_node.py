@@ -94,10 +94,10 @@ class ImageDisplayNode(Node):
         # finding the center of the frame
         (h,w) = cv_image.shape[:2]
         # Ploting the desired image location, center 640, 360
-        n1 = ((w//2) - 50 , ((h//2) - 50) - 200) # [590, 310]
-        n2 = ((w//2) - 50 , ((h//2) + 50) - 200) # [590, 410]
-        n3 = ((w//2) + 50 , ((h//2) + 50) - 200) # [690, 410]
-        n4 = ((w//2) + 50 , ((h//2) - 50) - 200) # [690, 310]
+        n1 = ((w//2) - 50 , ((h//2) - 50) - 180) # [590, 310]
+        n2 = ((w//2) - 50 , ((h//2) + 50) - 180) # [590, 410]
+        n3 = ((w//2) + 50 , ((h//2) + 50) - 180) # [690, 410]
+        n4 = ((w//2) + 50 , ((h//2) - 50) - 180) # [690, 310]
 
         #self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
         # EDITABLE
@@ -147,10 +147,12 @@ class ImageDisplayNode(Node):
                 floatArrayMsgData = Float32MultiArray()
                 #data = self.flatten_nested_list([top_right, bottom_left, bottom_right, top_left])
                 
-                floatArrayMsgData.data = [float(top_left[0]), float(top_left[1]), 
-                                          float(bottom_left[0]), float(bottom_left[1]), 
+                floatArrayMsgData.data = [float(top_left[0])    , float(top_left[1]), 
+                                          float(bottom_left[0]) , float(bottom_left[1]), 
                                           float(bottom_right[0]), float(bottom_right[1]), 
-                                          float(top_right[0]), float(top_right[1]), Z]
+                                          float(top_right[0])   , float(top_right[1]), 
+                                          float(tVec[i][0][1])  , float(tVec[i][0][1]),
+                                          float(tVec[i][0][2])  , Z ]
                 
                 self.publisher.publish(floatArrayMsgData)
 
