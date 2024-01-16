@@ -171,7 +171,7 @@ class ImageDisplayNode(Node):
 
                 floatArrayMsgPosDataFlow = Float32MultiArray()
                 floatArrayMsgPosDataFlow.data = [float(tVec[index][0][0]), float(tVec[index][0][1]), float(tVec[index][0][2])]
-                self.publisherPositionFlow.publish(floatArrayMsgPosData)
+                self.publisherPositionFlow.publish(floatArrayMsgPosDataFlow)
 
                 cv2.putText(
                     cv_image,
@@ -258,7 +258,7 @@ class ImageDisplayNode(Node):
 
             floatArrayMsgPosDataFlow = Float32MultiArray()
             floatArrayMsgPosDataFlow.data = [float(tVec[0][0][0]), float(tVec[0][0][1]), float(tVec[0][0][2])]
-            self.publisherPositionFlow.publish(floatArrayMsgPosData)
+            self.publisherPositionFlow.publish(floatArrayMsgPosDataFlow)
 
             cv2.putText(
                 cv_image,
