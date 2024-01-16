@@ -24,7 +24,8 @@ setup(
     entry_points={
         'console_scripts': [
             'aruco_detector = tello_vision.aruco_detector_node:main',
-            'tello_opencv = tello_vision.tello_opencv_node:main'
+            'tello_opencv = tello_vision.tello_opencv_node:main',
+            'capture_data = tello_vision.tello_opticalflowcapture_node:main'
         ],
     },
 )

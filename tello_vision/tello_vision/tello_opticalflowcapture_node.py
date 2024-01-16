@@ -52,6 +52,10 @@ class ImageDisplayNode(Node):
         self.publisher = self.create_publisher(Float32MultiArray, '/corner_data', 10)
         self.publisherPosition = self.create_publisher(Float32MultiArray, '/position_data', 10)
 
+        self.publisherPositionFlow = self.create_publisher(Float32MultiArray, '/position_data_flow', 10)
+
+
+
         self.dataCorner = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.cv_bridge = CvBridge()
         self.currentTime = self.get_clock().now()
@@ -165,9 +169,13 @@ class ImageDisplayNode(Node):
                 floatArrayMsgPosData.data = [float(tVec[index][0][0]), float(tVec[index][0][1]), float(tVec[index][0][2])]
                 self.publisherPosition.publish(floatArrayMsgPosData)
 
+                floatArrayMsgPosDataFlow = Float32MultiArray()
+                floatArrayMsgPosDataFlow.data = [float(tVec[index][0][0]), float(tVec[index][0][1]), float(tVec[index][0][2])]
+                self.publisherPositionFlow.publish(floatArrayMsgPosDataFlow)
+
                 cv2.putText(
                     cv_image,
-                    f"X Relative: {round(tVec[index][0][0],3)} m",
+                    f"X Relative: {round(tVec[index][0][0],5)} m",
                     (top_right[0]+20, top_right[1]+40),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -177,7 +185,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"Y Relative: {round(tVec[index][0][1],3)} m",
+                    f"Y Relative: {round(tVec[index][0][1],5)} m",
                     (top_right[0]+20, top_right[1]+60),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -187,7 +195,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"Z Relative: {round(tVec[index][0][2],3)} m",
+                    f"Z Relative: {round(tVec[index][0][2],5)} m",
                     (top_right[0]+20, top_right[1]+80),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -245,12 +253,16 @@ class ImageDisplayNode(Node):
             self.publisher.publish(floatArrayMsgData)
 
             floatArrayMsgPosData = Float32MultiArray()
-            floatArrayMsgPosData.data = [float(tVec[0][0][0]), float(tVec[0][0][1]), float(tVec[0][0][2])]
+            floatArrayMsgPosData.data = [float(20.0), float(20.0), float(20.0)]
             self.publisherPosition.publish(floatArrayMsgPosData)
+
+            floatArrayMsgPosDataFlow = Float32MultiArray()
+            floatArrayMsgPosDataFlow.data = [float(tVec[0][0][0]), float(tVec[0][0][1]), float(tVec[0][0][2])]
+            self.publisherPositionFlow.publish(floatArrayMsgPosDataFlow)
 
             cv2.putText(
                 cv_image,
-                f"X Relative: {round(tVec[0][0][0],3)} m",
+                f"X Relative: {round(tVec[0][0][0],5)} m",
                 (top_right[0]+20, top_right[1]+40),
                 cv2.FONT_HERSHEY_DUPLEX,
                 0.6,
@@ -260,7 +272,7 @@ class ImageDisplayNode(Node):
             )
             cv2.putText(
                 cv_image,
-                f"Y Relative: {round(tVec[0][0][1],3)} m",
+                f"Y Relative: {round(tVec[0][0][1],5)} m",
                 (top_right[0]+20, top_right[1]+60),
                 cv2.FONT_HERSHEY_DUPLEX,
                 0.6,
@@ -270,7 +282,7 @@ class ImageDisplayNode(Node):
             )
             cv2.putText(
                 cv_image,
-                f"Z Relative: {round(tVec[0][0][2],3)} m",
+                f"Z Relative: {round(tVec[0][0][2],5)} m",
                 (top_right[0]+20, top_right[1]+80),
                 cv2.FONT_HERSHEY_DUPLEX,
                 0.6,
