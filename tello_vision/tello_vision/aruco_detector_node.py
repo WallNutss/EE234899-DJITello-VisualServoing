@@ -37,10 +37,17 @@ class ImageDisplayNode(Node):
         )
         #data
         self.markerCorners = np.nan
-        self.alpha = 0.8
-        self.kf = cv2.KalmanFilter(4,2) # There is 2 measurements, which is 1 points consist 2 coordinates system points
-        self.kf.measurementMatrix = np.array([[1,0,0,0], [0,1,0,0]], np.float32)
-        self.kf.transitionMatrix  = np.array([[1,0,1,0], [0,1,0,1], [0,0,1,0], [0,0,0,1]], np.float32)
+
+        # For optical flow estimation
+        self.oldCorner = np.array([[]])
+        self.pointSelected = False
+        self.arucoDetected = False
+        self.stopCode      = False
+
+        self.lk_params = dict(winSize=(20,20),
+                              maxLevel=4,
+                              criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,10,0.01))
+        self.old_gray_image = np.nan
 
         self.publisher = self.create_publisher(Float32MultiArray, '/corner_data', 10)
         self.publisherPosition = self.create_publisher(Float32MultiArray, '/position_data', 10)
@@ -105,8 +112,10 @@ class ImageDisplayNode(Node):
         #self.get_logger().info(f"\nn1: {n1}\nn2: {n2}\nn3: {n3}\nn4: {n4}\n")
         # EDITABLE
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+
          # Trying to detect the marker with the object detector defined up there
         self.markerCorners, self.markerIds, rejectedCandidates = DETECTOR.detectMarkers(gray_image)
+        self.stopCode = False
 
         # This connect to if there is detection
         if len(self.markerCorners) > 0:
@@ -115,13 +124,13 @@ class ImageDisplayNode(Node):
             # Based on the markerCorners, so Kalman Filter shoould estimate the points --> points_hat
             #rVec, tVec, trash = self.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, intrinsic_mat, distortion_coef)
             rVec, tVec,_ = cv2.aruco.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, intrinsic_mat, distortion_coef)
-            # Loop over the IDs
-            total_markers = range(0, self.markerIds.size)
-            for ids, corners, i in zip(self.markerIds, self.markerCorners, total_markers):
-                # Draw the corners with convinient aruco library
-                cv2.aruco.drawDetectedMarkers(cv_image, self.markerCorners)
+
+            try:
+                mark = 2
+                index = [value[0] for value in self.markerIds].index(mark)
 
                 # Clockwise rotation in order start from top_left
+                corners = self.markerCorners[index]
                 corners = corners.reshape(4, 2)
                 corners = corners.astype(int)
 
@@ -134,56 +143,32 @@ class ImageDisplayNode(Node):
                 bottom_right = corners[2].ravel()
                 bottom_left  = corners[3].ravel()
 
-                #self.get_logger().info(f"\nn1: {top_left}\nn2: {bottom_left}\nn3: {bottom_right}\nn4: {top_right}\n")
-
-                # top_left_predicted = self.predict(top_left)
-                # top_right_predicted = self.predict(top_right)
-                # bottom_right_predicted = self.predict(bottom_right)
-                # bottom_left_predicted = self .predict(bottom_left)
-
                 # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
                 # Z = round(math.sqrt(
                 #     tVec[i][0][0] **2 + tVec[i][0][1] **2 + tVec[i][0][2] **2
                 # ),5) # m (already in m)
-                Z = round(tVec[i][0][2],5)
+                Z = round(tVec[index][0][2],5)
 
 
                 floatArrayMsgData = Float32MultiArray()
                 #data = self.flatten_nested_list([top_right, bottom_left, bottom_right, top_left])
                 
                 floatArrayMsgData.data = [float(top_left[0])             , float(top_left[1]), 
-                                          float(bottom_left[0])          , float(bottom_left[1]), 
-                                          float(bottom_right[0])         , float(bottom_right[1]), 
-                                          float(top_right[0])            , float(top_right[1]),
-                                          Z ]
+                                            float(bottom_left[0])          , float(bottom_left[1]), 
+                                            float(bottom_right[0])         , float(bottom_right[1]), 
+                                            float(top_right[0])            , float(top_right[1]),
+                                            Z ]
                 self.publisher.publish(floatArrayMsgData)
 
                 # self.get_logger().info(str(distance))
                 #point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 7, 3)
                 floatArrayMsgPosData = Float32MultiArray()
-                floatArrayMsgPosData.data = [float(tVec[i][0][0]), float(tVec[i][0][1]), float(tVec[i][0][2])]
+                floatArrayMsgPosData.data = [float(tVec[0][0][0]), float(tVec[0][0][1]), float(tVec[0][0][2])]
                 self.publisherPosition.publish(floatArrayMsgPosData)
 
-                #Draw number for debug
-                # cv2.putText(cv_image, f"top_left", top_left_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (61,7,219),1, cv2.LINE_AA)
-                # cv2.putText(cv_image, f"bottom_left", bottom_left_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (13,105,134),1, cv2.LINE_AA)
-                # cv2.putText(cv_image, f"bottom_right", bottom_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (210,199,142),1, cv2.LINE_AA)
-                # cv2.putText(cv_image, f"top_right", top_right_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (7,165,219),1, cv2.LINE_AA)
-
-                #Draw the information
                 cv2.putText(
                     cv_image,
-                    f"[ID]:[{ids[0]}]",
-                    top_right+20,
-                    cv2.FONT_HERSHEY_DUPLEX,
-                    0.6,
-                    (0,255,0),
-                    2,
-                    cv2.LINE_AA
-                )
-                cv2.putText(
-                    cv_image,
-                    f"X Relative: {round(tVec[i][0][0],3)} m",
+                    f"X Relative: {round(tVec[index][0][0],3)} m",
                     (top_right[0]+20, top_right[1]+40),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -193,7 +178,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"Y Relative: {round(tVec[i][0][1],3)} m",
+                    f"Y Relative: {round(tVec[index][0][1],3)} m",
                     (top_right[0]+20, top_right[1]+60),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -203,7 +188,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"Z Relative: {round(tVec[i][0][2],3)} m",
+                    f"Z Relative: {round(tVec[index][0][2],3)} m",
                     (top_right[0]+20, top_right[1]+80),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -211,14 +196,109 @@ class ImageDisplayNode(Node):
                     2,
                     cv2.LINE_AA
                 )
-        # else:
-        #     # Low filter
-        #     pass
+
+                # For Optical flow
+                self.arucoDetected = True
+                self.stopCode = True
+                self.oldCorner = np.array([top_left, top_right, bottom_right, bottom_left],dtype=np.float32)
+
+                corners = (np.array([[top_left, top_right, bottom_right, bottom_left]], dtype=np.float32),)
+
+                # Draw the corners with convinient aruco library
+                cv2.aruco.drawDetectedMarkers(cv_image, corners)
+
+            except ValueError:
+                pass
+        if self.arucoDetected and self.stopCode == False:
+            # Estimate marker corner if not available 
+            new_corner, _, _ = cv2.calcOpticalFlowPyrLK(self.old_gray_image, gray_image, self.oldCorner, None, **self.lk_params)
+            self.oldCorner  = new_corner
+            new_corner = new_corner.astype(int)
+            corners = (np.array([new_corner], dtype=np.float32),)
+
+            # Estimate pose from marker corner estimation
+            cv2.aruco.drawDetectedMarkers(cv_image, corners, borderColor=(255,0,0))
+            rVec, tVec,_ = cv2.aruco.estimatePoseSingleMarkers(corners, MARKER_SIZE, intrinsic_mat, distortion_coef)
+
+            # Clockwise rotation in order start from top_left
+            corners = corners[0].reshape(4, 2)
+            corners = corners.astype(int)
+
+            # markerCorners is the list of corners of the detected markers. 
+            # For each marker, its four corners are returned in their original order 
+            # (which is clockwise starting with top left). So, the first corner is the top left corner, 
+            # followed by the top right, bottom right and bottom left.
+            top_left     = corners[0].ravel()
+            top_right    = corners[1].ravel()
+            bottom_right = corners[2].ravel()
+            bottom_left  = corners[3].ravel()
+
+            # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
+            Z = round(tVec[0][0][2],5)
+
+            floatArrayMsgData = Float32MultiArray()
+            
+            floatArrayMsgData.data = [float(top_left[0])             , float(top_left[1]), 
+                                        float(bottom_left[0])          , float(bottom_left[1]), 
+                                        float(bottom_right[0])         , float(bottom_right[1]), 
+                                        float(top_right[0])            , float(top_right[1]),
+                                        Z ]
+            self.publisher.publish(floatArrayMsgData)
+
+            floatArrayMsgPosData = Float32MultiArray()
+            floatArrayMsgPosData.data = [float(tVec[0][0][0]), float(tVec[0][0][1]), float(tVec[0][0][2])]
+            self.publisherPosition.publish(floatArrayMsgPosData)
+
+            cv2.putText(
+                cv_image,
+                f"X Relative: {round(tVec[0][0][0],3)} m",
+                (top_right[0]+20, top_right[1]+40),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.6,
+                (0,255,0),
+                2,
+                cv2.LINE_AA
+            )
+            cv2.putText(
+                cv_image,
+                f"Y Relative: {round(tVec[0][0][1],3)} m",
+                (top_right[0]+20, top_right[1]+60),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.6,
+                (0,255,0),
+                2,
+                cv2.LINE_AA
+            )
+            cv2.putText(
+                cv_image,
+                f"Z Relative: {round(tVec[0][0][2],3)} m",
+                (top_right[0]+20, top_right[1]+80),
+                cv2.FONT_HERSHEY_DUPLEX,
+                0.6,
+                (0,255,0),
+                2,
+                cv2.LINE_AA
+            )
+
+
+        #Draw the information
+        # cv2.putText(
+        #     cv_image,
+        #     f"[ID]:[{ids[0]}]",
+        #     top_right+20,
+        #     cv2.FONT_HERSHEY_DUPLEX,
+        #     0.6,
+        #     (0,255,0),
+        #     2,
+        #     cv2.LINE_AA
+        # )
+
         cv2.circle(cv_image, n1, 5, (255,0,0), 2)
         cv2.circle(cv_image, n2, 5, (255,0,0), 2)
         cv2.circle(cv_image, n3, 5, (255,0,0), 2)
         cv2.circle(cv_image, n4, 5, (255,0,0), 2)
 
+        self.old_gray_image = gray_image.copy()
         key = cv2.waitKey(1)  # Refresh window
         # Safety Mechanism
         if key == ord("q"):
