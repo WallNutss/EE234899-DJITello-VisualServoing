@@ -13,13 +13,14 @@ sys.path.append('/home/wallnuts/tello_ros_ws/src/tello_ros/tello_msgs')
 from tello_msgs.srv import TelloAction
 
 # load in the calibration data, its from calibration in 960x720
-cam_mat = np.array([925.259979,         0.0, 491.398274,
+intrinsic_mat   = np.array([925.259979,         0.0, 491.398274,
                     0.0        , 927.502076, 371.463298,
                     0.0        , 0.0       , 1.0]).reshape(3,3)
 
-dist_coef = np.array([-0.018452, 0.108834, 0.003492, 0.001679, 0.0]).reshape(1,5)
+distortion_coef = np.array([-0.018452, 0.108834, 0.003492, 0.001679, 0.0])
 
-MARKER_SIZE = 15 # centimeters (measure your printed marker size), Ideally have to try print them again, 15cm x 15cm should suffice
+# So marker size is in meters?
+MARKER_SIZE = 0.15 # centimeters (measure your printed marker size), Ideally have to try print them again, 15cm x 15cm should suffice
 MARKER_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_100)
 PARAM_MARKERS = cv2.aruco.DetectorParameters()
 DETECTOR = cv2.aruco.ArucoDetector(MARKER_DICT, PARAM_MARKERS)
@@ -42,6 +43,8 @@ class ImageDisplayNode(Node):
         self.kf.transitionMatrix  = np.array([[1,0,1,0], [0,1,0,1], [0,0,1,0], [0,0,0,1]], np.float32)
 
         self.publisher = self.create_publisher(Float32MultiArray, '/corner_data', 10)
+        self.publisherPosition = self.create_publisher(Float32MultiArray, '/position_data', 10)
+
         self.dataCorner = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.cv_bridge = CvBridge()
         self.currentTime = self.get_clock().now()
@@ -54,7 +57,7 @@ class ImageDisplayNode(Node):
 
         return x,y
 
-        # https://stackoverflow.com/questions/76802576/how-to-estimate-pose-of-single-marker-in-opencv-python-4-8-0
+    # https://stackoverflow.com/questions/76802576/how-to-estimate-pose-of-single-marker-in-opencv-python-4-8-0
     def estimatePoseSingleMarkers(self, corners, marker_size, mtx, distortion):
         '''
         This will estimate the rvec and tvec for each of the marker corners detected by:
@@ -110,8 +113,8 @@ class ImageDisplayNode(Node):
             # Flattens the IDs
             # Getting the Pose of Estimation by getting the Translation and Rotation Vector
             # Based on the markerCorners, so Kalman Filter shoould estimate the points --> points_hat
-            #rVec, tVec, trash = self.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, cam_mat, dist_coef)
-            rVec, tVec, trash = cv2.aruco.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, cam_mat, dist_coef)
+            #rVec, tVec, trash = self.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, intrinsic_mat, distortion_coef)
+            rVec, tVec,_ = cv2.aruco.estimatePoseSingleMarkers(self.markerCorners, MARKER_SIZE, intrinsic_mat, distortion_coef)
             # Loop over the IDs
             total_markers = range(0, self.markerIds.size)
             for ids, corners, i in zip(self.markerIds, self.markerCorners, total_markers):
@@ -139,26 +142,27 @@ class ImageDisplayNode(Node):
                 # bottom_left_predicted = self .predict(bottom_left)
 
                 # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
-                Z = round(math.sqrt(
-                    tVec[i][0][1] **2 + tVec[i][0][1] **2 + tVec[i][0][2] **2
-                )/100,3) # cm --> m (for now its convert to m)
+                # Z = round(math.sqrt(
+                #     tVec[i][0][0] **2 + tVec[i][0][1] **2 + tVec[i][0][2] **2
+                # ),5) # m (already in m)
+                Z = round(tVec[i][0][2],5)
 
 
                 floatArrayMsgData = Float32MultiArray()
                 #data = self.flatten_nested_list([top_right, bottom_left, bottom_right, top_left])
                 
-                floatArrayMsgData.data = [float(top_left[0])    , float(top_left[1]), 
-                                          float(bottom_left[0]) , float(bottom_left[1]), 
-                                          float(bottom_right[0]), float(bottom_right[1]), 
-                                          float(top_right[0])   , float(top_right[1]), 
-                                          float(tVec[i][0][1])  , float(tVec[i][0][1]),
-                                          float(tVec[i][0][2])  , Z ]
-                
+                floatArrayMsgData.data = [float(top_left[0])             , float(top_left[1]), 
+                                          float(bottom_left[0])          , float(bottom_left[1]), 
+                                          float(bottom_right[0])         , float(bottom_right[1]), 
+                                          float(top_right[0])            , float(top_right[1]),
+                                          Z ]
                 self.publisher.publish(floatArrayMsgData)
 
                 # self.get_logger().info(str(distance))
                 #point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 7, 3)
-
+                floatArrayMsgPosData = Float32MultiArray()
+                floatArrayMsgPosData.data = [float(tVec[i][0][0]), float(tVec[i][0][1]), float(tVec[i][0][2])]
+                self.publisherPosition.publish(floatArrayMsgPosData)
 
                 #Draw number for debug
                 # cv2.putText(cv_image, f"top_left", top_left_predicted, cv2.FONT_HERSHEY_DUPLEX, 0.6, (61,7,219),1, cv2.LINE_AA)
@@ -179,7 +183,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"X Relative: {round(tVec[i][0][0],2)} cm",
+                    f"X Relative: {round(tVec[i][0][0],3)} m",
                     (top_right[0]+20, top_right[1]+40),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -189,7 +193,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"Y Relative: {round(tVec[i][0][1],2)} cm",
+                    f"Y Relative: {round(tVec[i][0][1],3)} m",
                     (top_right[0]+20, top_right[1]+60),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
@@ -199,7 +203,7 @@ class ImageDisplayNode(Node):
                 )
                 cv2.putText(
                     cv_image,
-                    f"Z Relative: {round(tVec[i][0][2],2)} cm",
+                    f"Z Relative: {round(tVec[i][0][2],3)} m",
                     (top_right[0]+20, top_right[1]+80),
                     cv2.FONT_HERSHEY_DUPLEX,
                     0.6,
