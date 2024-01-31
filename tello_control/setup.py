@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'ibvs_pid = tello_control.ibvs_pid_node:main',
             'ibvs_ismc = tello_control.ibvs_ismc_node:main',
+            'ibvs_smc = tello_control.ibvs_ismc_node:main'
         ],
     },
 )
