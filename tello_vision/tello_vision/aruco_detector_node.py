@@ -144,23 +144,21 @@ class ImageDisplayNode(Node):
 
                 # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
                 # Z = round(math.sqrt(
-                #     tVec[i][0][0] **2 + tVec[i][0][1] **2 + tVec[i][0][2] **2
-                # ),5) # m (already in m)
+                #         tVec[index][0][0] **2 + tVec[index][0][1] **2 + tVec[index][0][2] **2
+                #     ),3) # Already in meters
                 Z = round(tVec[index][0][2],5)
 
 
                 floatArrayMsgData = Float32MultiArray()
-                #data = self.flatten_nested_list([top_right, bottom_left, bottom_right, top_left])
-                
-                floatArrayMsgData.data = [float(top_left[0])             , float(top_left[1]), 
-                                            float(bottom_left[0])          , float(bottom_left[1]), 
-                                            float(bottom_right[0])         , float(bottom_right[1]), 
-                                            float(top_right[0])            , float(top_right[1]),
-                                            Z ]
+
+                floatArrayMsgData.data = [  float(top_left[0])      , float(top_left[1]), 
+                                            float(bottom_left[0])   , float(bottom_left[1]), 
+                                            float(bottom_right[0])  , float(bottom_right[1]), 
+                                            float(top_right[0])     , float(top_right[1]),
+                                            Z]
                 self.publisher.publish(floatArrayMsgData)
 
                 # self.get_logger().info(str(distance))
-                #point = cv2.drawFrameAxes(cv_image, cam_mat, dist_coef, rVec[i], tVec[i], 7, 3)
                 floatArrayMsgPosData = Float32MultiArray()
                 floatArrayMsgPosData.data = [float(tVec[index][0][0]), float(tVec[index][0][1]), float(tVec[index][0][2])]
                 self.publisherPosition.publish(floatArrayMsgPosData)
@@ -195,7 +193,7 @@ class ImageDisplayNode(Node):
                     2,
                     cv2.LINE_AA
                 )
-
+         
                 # For Optical flow
                 self.arucoDetected = True
                 self.stopCode = True
@@ -205,9 +203,10 @@ class ImageDisplayNode(Node):
 
                 # Draw the corners with convinient aruco library
                 cv2.aruco.drawDetectedMarkers(cv_image, corners)
+            except:
+                self.get_logger().info(f"No Marker with ID:2 Detected\n")
+                # Don't do nothing, just continue to next if statement
 
-            except ValueError:
-                pass
         if self.arucoDetected and self.stopCode == False:
             # Estimate marker corner if not available 
             new_corner, _, _ = cv2.calcOpticalFlowPyrLK(self.old_gray_image, gray_image, self.oldCorner, None, **self.lk_params)
@@ -216,7 +215,7 @@ class ImageDisplayNode(Node):
             corners = (np.array([new_corner], dtype=np.float32),)
 
             # Estimate pose from marker corner estimation
-            cv2.aruco.drawDetectedMarkers(cv_image, corners, borderColor=(255,0,0))
+            #cv2.aruco.drawDetectedMarkers(cv_image, corners, borderColor=(255,0,0))
             rVec, tVec,_ = cv2.aruco.estimatePoseSingleMarkers(corners, MARKER_SIZE, intrinsic_mat, distortion_coef)
 
             # Clockwise rotation in order start from top_left
@@ -233,11 +232,13 @@ class ImageDisplayNode(Node):
             bottom_left  = corners[3].ravel()
 
             # Euclidean Distance from aruco pose estimations (It's still estimation don't forgot!)
+            # Z = round(math.sqrt(
+            #     tVec[0][0][0] **2 + tVec[0][0][1] **2 + tVec[0][0][2] **2
+            # ),3) # Already in meters
             Z = round(tVec[0][0][2],5)
 
             floatArrayMsgData = Float32MultiArray()
-            
-            floatArrayMsgData.data = [float(top_left[0])             , float(top_left[1]), 
+            floatArrayMsgData.data = [  float(top_left[0])             , float(top_left[1]), 
                                         float(bottom_left[0])          , float(bottom_left[1]), 
                                         float(bottom_right[0])         , float(bottom_right[1]), 
                                         float(top_right[0])            , float(top_right[1]),
@@ -279,18 +280,6 @@ class ImageDisplayNode(Node):
                 cv2.LINE_AA
             )
 
-        #Draw the information
-        # cv2.putText(
-        #     cv_image,
-        #     f"[ID]:[{ids[0]}]",
-        #     top_right+20,
-        #     cv2.FONT_HERSHEY_DUPLEX,
-        #     0.6,
-        #     (0,255,0),
-        #     2,
-        #     cv2.LINE_AA
-        # )
-
         cv2.circle(cv_image, n1, 5, (255,0,0), 2)
         cv2.circle(cv_image, n2, 5, (255,0,0), 2)
         cv2.circle(cv_image, n3, 5, (255,0,0), 2)
@@ -329,7 +318,6 @@ class ImageDisplayNode(Node):
             self.get_logger().info(f'Response: {future.result()}')
         else:
             self.get_logger().error('Service call failed')
-
 
 
 def main(args=None):
