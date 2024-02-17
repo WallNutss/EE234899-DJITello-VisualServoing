@@ -12,7 +12,7 @@ def VelocityTwistMatrix(cRe,cTe):
     cMe[3:6, 3:6] = cRe
     return cMe
 
-class IBVSPIDController(Node):
+class IBVSController(Node):
     def __init__(self,target):
         super().__init__('IBVS_Controller')
         self.get_logger().info("This is the start of IBVS PID Controller")
@@ -21,16 +21,15 @@ class IBVSPIDController(Node):
         self.publishererror = self.create_publisher(Float32MultiArray, '/error_data', 10)
         self.errData = Float32MultiArray()
         self.target = np.array(self.flatten_nested_list(target))
-        #self.lamba = np.array([0.08, 0.095, 0.2, 0.04, 0.04, 0.04]).reshape(6,1)
-
+        
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
         # new calibration data
         self.fx = 925.259979 # pixels
         self.fy = 927.502076 # pixels
         self.cx = 491.398274 # pixels
         self.cy = 371.463298 # pixels
-        self.focalLength = 926 # Pixels
-        #self.focalLength = (self.fx + self.fy)/2 # Pixels
+        # self.focalLength = 925.259979
+        self.focalLength = round((self.fx + self.fy)/2,3)
 
         # {CF} --> {BF}
         cRe = np.array([[0,-1,0],[0,0,-1],[1,0,0]])
@@ -70,7 +69,7 @@ class IBVSPIDController(Node):
 
         epsilon = np.sqrt(np.sum(error_data**2)/8)
         # Reason
-        # With quadcopter as a non-linear system plus an image with also a non-linear system, it's getting harder
+        # With quadcopter as a non-linear system plus an image qqqwith also a non-linear system, it's getting harder
         # to control a quadcopter from an image. To cope with over overshoot, I divide it into two step flight
         # mechanism the cope with this, at least to reduce the burden of the calculation and easy implementation
         # as we get near the feature we want, at least in radius of 15px of each points, I decide to give the
@@ -92,11 +91,11 @@ class IBVSPIDController(Node):
             Jacobian_ = np.vstack((jacobian_p1,jacobian_p2, jacobian_p3,jacobian_p4))
             Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
 
-            cmd = -0.15 * np.matmul(Jacobian, control_pid) # Camera Command U, maybe divide 0.2/100 will miracelyy goes to cm/s
+            cmd = -0.05 * np.matmul(Jacobian, control_pid) # Camera Command U, maybe divide 0.2/100 will miracelyy goes to cm/s
 
             cmd = np.clip(cmd,-1.0,1.0)
 
-        # Safety measure, try to cap them for testing and debugging,
+        # Safety measure, try to cap them for testing and debugging,ear
         # Following the format given by tello_ros package, for cmd they map it to [-1,1]
         self.get_logger().info(f"Computational cmd:\n{cmd}\n")
         
@@ -130,18 +129,18 @@ def main(args=None):
                        [430,260], 
                        [530,260], 
                        [530,160]] # Already corrected, its in pixel units
-    # This is for offset in v-axis about 200px upward in 960x720 frame, spacing 100px
-    target_position3 = [[430,110], 
-                        [430,210], 
-                        [530,210], 
-                        [530,110]]
     # This is for offset in v-axis about 180px upward in 960x720 frame, spacing 100px
     target_position4 = [[430,130], 
                         [430,230], 
                         [530,230], 
                         [530,130]]
+    # This is for offset in v-axis about 180px upward in 960x720 frame, spacing 80px
+    target_position5 = [[440,130], 
+                        [440,230], 
+                        [520,230], 
+                        [520,140]]
     
-    ibvs_controller = IBVSPIDController(target_position3)
+    ibvs_controller = IBVSController(target_position4)
     rclpy.spin(ibvs_controller)
     ibvs_controller.destroy_node()
     rclpy.shutdown()

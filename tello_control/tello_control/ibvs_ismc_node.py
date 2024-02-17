@@ -14,25 +14,24 @@ def VelocityTwistMatrix(cRe,cTe):
 
 class IBVSISMCController(Node):
     def __init__(self,target):
-        super().__init__('IBVS_Controller')
+        super().__init__('IBVS_ISMCController')
         self.get_logger().info("This is the start of IBVS ISMC Controller")
         self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
         self.subscription = self.create_subscription(Float32MultiArray, '/corner_data', self.vision_feedback, 10)
         self.publishererror = self.create_publisher(Float32MultiArray, '/error_data', 10)
         self.errData = Float32MultiArray()
         self.target = np.array(self.flatten_nested_list(target))
-        #self.lamba = np.array([0.1, 0.09, 0.2, 0, 1.2, 2]).reshape(6,1)
-
+        
         #self.focalLength = 0.025 #--> now its in m, aprox from dji tello specs # 904.91767127 # Its verified, its in pixel
         # new calibration data
-        self.fx = 925.259979 # pixels
+        self.fx = 925.259979 # pixels/corner_data /error_data
         self.fy = 927.502076 # pixels
         self.cx = 491.398274 # pixels
         self.cy = 371.463298 # pixels
-        self.focalLength = 925.259979 # Pixels
-        #self.focalLength = (self.fx + self.fy)/2 # Pixels
+        #self.focalLength = 925.259979 # Pixels
+        self.focalLength = round((self.fx + self.fy)/2,3)
 
-        # {CF} --> {BF}
+        # {CF} --> {BF}/corner_data /error_data
         cRe = np.array([[0,-1,0],[0,0,-1],[1,0,0]])
         cTe = np.array([0,0,0])
         self.R = VelocityTwistMatrix(cRe,cTe)
@@ -85,7 +84,7 @@ class IBVSISMCController(Node):
             sliding_surface = ((error_data - self.errorPrev)/delta_time) + 0.6*(error_data) + 0.8*(self.errorSum)
             
             # Control                  K                        lambda                                lambda2                            
-            control_smc = 2*np.tanh(sliding_surface) + 0.6*(error_data-self.errorPrev)/delta_time + 0.8*(error_data)
+            control_smc = 2.0*np.tanh(sliding_surface) + 0.6*(error_data-self.errorPrev)/delta_time + 0.8*(error_data)
 
             # Error data in form of shape 8x1 matrixs for Jacobian Pseudo Inverse Calculation
             jacobian_p1 = self.image_jacobian_matrix((corner_data[0],corner_data[1], corner_data[-1]))
@@ -97,7 +96,7 @@ class IBVSISMCController(Node):
             Jacobian = np.linalg.pinv(np.matmul(np.matmul(Jacobian_, self.R),self.jacobian_end_effector))
 
             # np.set_printoptions(suppress=True
-            cmd = -0.2 * np.matmul(Jacobian, control_smc) # Camera Command U
+            cmd = -0.05 * np.matmul(Jacobian, control_smc) # Camera Command U
 
             # Safety measure, try to cap them for testing and debugging,
             # Following the format given by tello_ros package, for cmd they map it to [-1,1]
@@ -106,10 +105,10 @@ class IBVSISMCController(Node):
         self.get_logger().info(f"Computational cmd:\n{cmd}\n")
         
         cmd_vel_msg = Twist()
-        cmd_vel_msg.linear.x = float(cmd[0][0])
-        cmd_vel_msg.linear.y = float(cmd[1][0])
-        cmd_vel_msg.linear.z = float(cmd[2][0])
-        cmd_vel_msg.angular.z = float(cmd[3][0])
+        cmd_vel_msg.linear.x = float(cmd[0])
+        cmd_vel_msg.linear.y = float(cmd[1])
+        cmd_vel_msg.linear.z = float(cmd[2])
+        cmd_vel_msg.angular.z = float(cmd[3])
         
         # Publish control commands
         self.publisher.publish(cmd_vel_msg)
@@ -124,9 +123,6 @@ class IBVSISMCController(Node):
         self.last_time = current_time
 
 
-
-
-
 def main(args=None):
     rclpy.init(args=args)
 
@@ -136,18 +132,18 @@ def main(args=None):
                        [430,260], 
                        [530,260], 
                        [530,160]] # Already corrected, its in pixel units
-    # This is for offset in v-axis about 200px upward in 960x720 frame, spacing 100px
-    target_position3 = [[430,110], 
-                        [430,210], 
-                        [530,210], 
-                        [530,110]]
     # This is for offset in v-axis about 180px upward in 960x720 frame, spacing 100px
     target_position4 = [[430,130], 
                         [430,230], 
                         [530,230], 
                         [530,130]]
+    # This is for offset in v-axis about 180px upward in 960x720 frame, spacing 80px
+    target_position5 = [[440,130], 
+                        [440,230], 
+                        [520,230], 
+                        [520,140]]
  
-    ibvs_controller = IBVSISMCController(target_position3)
+    ibvs_controller = IBVSISMCController(target_position5)
     rclpy.spin(ibvs_controller)
     ibvs_controller.destroy_node()
     rclpy.shutdown()
